@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  #ball {
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background: rgba(20, 22, 26, 0.92);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #ball:active { cursor: grabbing; }
+  #ball svg { width: 28px; height: 28px; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="ball" role="button" aria-label="Floating assistant">
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="6" width="16" height="12" rx="3" fill="#4d9fff"/>
+    <circle cx="9.5" cy="12" r="1.6" fill="#ffffff"/>
+    <circle cx="14.5" cy="12" r="1.6" fill="#ffffff"/>
+  </svg>
+</div>
+<script>
+  const api = window.dshFloatingBall
+  const ball = document.getElementById('ball')
+  let drag = null
+  ball.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || drag !== null) return
+    ball.setPointerCapture(event.pointerId)
+    drag = { x: event.screenX, y: event.screenY, moved: false }
+  })
+  ball.addEventListener('pointermove', (event) => {
+    if (drag === null) return
+    const dx = event.screenX - drag.x
+    const dy = event.screenY - drag.y
+    if (dx === 0 && dy === 0) return
+    drag.x = event.screenX
+    drag.y = event.screenY
+    drag.moved = true
+    api.move(dx, dy)
+  })
+  ball.addEventListener('pointerup', () => {
+    if (drag === null) return
+    const clicked = !drag.moved
+    drag = null
+    if (clicked) api.toggle()
+  })
+  ball.addEventListener('pointercancel', () => { drag = null })
+</script>
+</body>
+</html>

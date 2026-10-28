@@ -93,6 +93,12 @@ export interface DshDesktopProductApi {
   }
 }
 
+/** IPC channels private to the floating assistant ball document. */
+export const FLOATING_IPC = {
+  ballToggle: 'dsh-desktop:floating-ball-toggle',
+  ballMove: 'dsh-desktop:floating-ball-move',
+} as const
+
 /** Scheme of Desktop-owned application documents. */
 export const SCHEME = 'dsh-app'
 

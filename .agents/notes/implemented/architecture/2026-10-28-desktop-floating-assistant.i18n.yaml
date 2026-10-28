@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-28-desktop-floating-assistant.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-28-desktop-floating-assistant.md
+/agent-note-desktop-floating-assistant-above-other-applications:
+  en: 662e9d4fc56109f8
+  zh: dedad5caddeb4a15
+/agent-note-desktop-floating-assistant-above-other-applications/problem:
+  en: 751a1e1afe945e13
+  zh: 3705786064435e94
+/agent-note-desktop-floating-assistant-above-other-applications/decision:
+  en: d8f97b62d3fb1b6a
+  zh: 1a8dd2b4877d4bb2
+/agent-note-desktop-floating-assistant-above-other-applications/alternatives-considered:
+  en: f5ffab0aca7f08b8
+  zh: e786d4be9c77a6a6
+/agent-note-desktop-floating-assistant-above-other-applications/consequences:
+  en: 5f8f486495a25cc2
+  zh: 3049d03d939edc89

@@ -679,3 +679,32 @@ describe('AppFrame frame measurement lifecycle', () => {
     expect(animationFrames.size).toBe(0)
   })
 })
+
+describe('AppFrame compact mode', () => {
+  afterEach(() => {
+    window.history.replaceState({}, '', '/')
+  })
+
+  it('renders a single centre column under a drag strip for the floating assistant panel', () => {
+    window.history.replaceState({}, '', '/?dshCompact=1')
+    const { frame, slotCalls } = mountFrame()
+    const keys = slotCalls.map(call => call.key)
+    expect(frame.dataset.compact).toBe('true')
+    expect(frame.style.gridTemplateColumns).toBe('1fr')
+    expect(frame.querySelector('[data-compact-drag]')).not.toBeNull()
+    expect(keys).toContain('main')
+    expect(keys).toContain('shell.overlay')
+    expect(keys).not.toContain('sidebar')
+    expect(keys).not.toContain('rightbar')
+    expect(keys).not.toContain('shell.bottom')
+    expect(keys).not.toContain('shell.leading')
+    expect(frame.querySelector('[data-side="sidebar"]')).toBeNull()
+  })
+
+  it('keeps the three-column frame without the compact query', () => {
+    const { frame, slotCalls } = mountFrame()
+    expect(frame.dataset.compact).toBeUndefined()
+    expect(frame.querySelector('[data-compact-drag]')).toBeNull()
+    expect(slotCalls.map(call => call.key)).toContain('sidebar')
+  })
+})

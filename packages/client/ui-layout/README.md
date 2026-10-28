@@ -40,6 +40,8 @@ On macOS desktop (`html[data-platform='darwin']`, set only by the desktop preloa
 
 Windows Electron's `data-windows-titlebar` marker reserves the caption height above all columns and removes the collapsed sidebar rail. Only the content area's top-left corner has a 16px radius; the other corners and the internal divider remain square. The frame publishes `--dsh-windows-content-radius` and `--dsh-windows-sidebar-width` for ui-sidebar-right's fullscreen corner and sidebar clearance. Ordinary Web documents do not receive the marker; macOS retains its separate layout.
 
+The Desktop floating assistant panel loads the document with `?dshCompact=1`; the frame then renders a single centre column under a 28px `-webkit-app-region: drag` strip and leaves the sidebar, rightbar, `shell.bottom`, and `shell.leading` seats unrendered. The mode comes from the URL alone, so a panel reload restores it without shell state.
+
 The root publishes `--dsh-frame-top-clearance` for the reserved strip (48px on macOS, the caption height on Windows), and `--dsh-frame-overlay-top` adds 20px for dialogs and menus. Native fullscreen reduces the overlay inset to 20px; dialogs retain their own 24px minimum. `--dsh-frame-chrome-top` excludes the Windows caption from modal mask painting and becomes zero in fullscreen. The full-viewport modal layer still blocks background clicks. Plain browser documents publish none of these values.
 
 ### Theme presentation

@@ -93,6 +93,7 @@ vi.mock('electron', () => ({
   ipcMain: {
     handle: (name: string, callback: (...args: unknown[]) => unknown) => { state.handlers.set(name, callback) },
     on: (name: string, callback: (...args: unknown[]) => void) => { state.listeners.set(name, callback) },
+    removeListener: vi.fn(),
   },
   dialog: { showErrorBox: vi.fn(), showMessageBox: vi.fn() },
   Menu: { buildFromTemplate: state.menu, setApplicationMenu: vi.fn() },

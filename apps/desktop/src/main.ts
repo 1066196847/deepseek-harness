@@ -66,6 +66,7 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { DesktopFloatingAssistant } from './floating-window.ts'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -488,13 +489,20 @@ async function main(): Promise<void> {
   let returnedAttempt: string | undefined
   let pendingWelcomeNotice: WelcomeNotice | undefined
   let previousAccountStatus: string | undefined
+  // The main window and the floating assistant panel are both owned product
+  // documents: same origin, same boot injections, same Host credentials.
+  const ownedProductWindow = (event: IpcMainInvokeEvent): BrowserWindow | undefined => {
+    if (event.senderFrame === null || event.senderFrame !== event.sender.mainFrame) return undefined
+    if (mainWindow !== undefined && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents) return mainWindow
+    const panel = floating.panelWindow()
+    if (panel !== undefined && event.sender === panel.webContents) return panel
+    return undefined
+  }
   const assertProductSender = (event: IpcMainInvokeEvent): BrowserWindow => {
     assertDesktopSender(event, ['app'])
-    if (mainWindow === undefined || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents
-      || event.senderFrame === null || event.senderFrame !== mainWindow.webContents.mainFrame) {
-      throw new Error('dsh desktop: rejected IPC from an unowned renderer')
-    }
-    return mainWindow
+    const owner = ownedProductWindow(event)
+    if (owner === undefined) throw new Error('dsh desktop: rejected IPC from an unowned renderer')
+    return owner
   }
   let navigation: { window: BrowserWindow; url: string; promise: Promise<void> } | undefined
   const navigateMain = (url: string): Promise<void> => {
@@ -791,8 +799,8 @@ async function main(): Promise<void> {
 
   ipcMain.handle(DESKTOP_IPC.bootFailed, (event, message: unknown) => {
     assertDesktopSender(event, ['app'])
-    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame) {
-      throw new Error('dsh desktop: rejected startup failure from a non-primary frame')
+    if (ownedProductWindow(event) === undefined) {
+      throw new Error('dsh desktop: rejected startup failure from an unowned renderer')
     }
     if (typeof message !== 'string') throw new Error('dsh desktop: startup failure must be text')
     reportFatal(new Error(message), 'web-boot')
@@ -808,7 +816,9 @@ async function main(): Promise<void> {
   })
 
   session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['ws://127.0.0.1/*', 'wss://127.0.0.1/*'] }, (details, callback) => {
-    if (hostUrl === undefined || hostCookie === undefined || details.webContentsId !== mainWindow?.webContents.id) {
+    const ownedContents = [mainWindow?.webContents, floating.panelWindow()?.webContents]
+    if (hostUrl === undefined || hostCookie === undefined
+      || !ownedContents.some(contents => contents !== undefined && contents.id === details.webContentsId)) {
       callback({})
       return
     }
@@ -840,13 +850,13 @@ async function main(): Promise<void> {
     platformView.setBounds(platformBounds(bounds))
   })
   ipcMain.handle(PLATFORM_IPC.close, (event) => { assertMainApplication(event); platformView.close() })
-  // Only the main window may synchronize its palette with the native material.
+  // Owned product documents synchronize their palette with the native material.
   ipcMain.on(DESKTOP_IPC.nativeThemeSet, (event, source: unknown) => {
-    if (mainWindow === undefined || event.sender !== mainWindow.webContents) return
+    if (ownedProductWindow(event) === undefined) return
     if (source === 'light' || source === 'dark' || source === 'system') nativeTheme.themeSource = source
   })
   ipcMain.handle(DESKTOP_IPC.localeBootstrap, async (event) => {
-    if (event.sender !== mainWindow?.webContents || event.senderFrame !== mainWindow.webContents.mainFrame
+    if (event.senderFrame === null || ownedProductWindow(event) === undefined
       || new URL(event.senderFrame.url).origin !== new URL(applicationUrl).origin) {
       throw new Error('desktop welcome: rejected locale request from an unowned frame')
     }
@@ -854,9 +864,7 @@ async function main(): Promise<void> {
     return { languages: systemLanguages, preference: await welcomeBackend.readLocalePreference() }
   })
   ipcMain.on(DESKTOP_IPC.localeChanged, (event, next: unknown) => {
-    const window = mainWindow
-    if (window === undefined || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame
-      || typeof next !== 'string') return
+    if (ownedProductWindow(event) === undefined || typeof next !== 'string') return
     const current = resolveDesktopStartupLocale(next, systemLanguages)
     writeDesktopLocaleCache(app.getPath('userData'), current.id)
     if (current.id === locale.id) return
@@ -1056,6 +1064,8 @@ async function main(): Promise<void> {
       : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
     { type: 'separator' },
     { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
+    { label: currentDesktopLocale().messages.floatingAssistantMenu, type: 'checkbox', checked: floating.enabled,
+      click: (item) => { floating.setEnabled(item.checked) } },
     ...process.platform === 'darwin' || process.platform === 'win32'
       ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],
     ...development ? [
@@ -1076,6 +1086,13 @@ async function main(): Promise<void> {
     { role: 'toggleDevTools', visible: false },
     { role: 'toggleDevTools', visible: false, accelerator: 'F12' },
   ]
+  const floating = new DesktopFloatingAssistant({
+    statePath: join(app.getPath('userData'), 'desktop', 'floating-assistant.json'),
+    ballPreload: fileURLToPath(new URL('./preload-floating-ball.cjs', import.meta.url)),
+    panelPreload: appPreload,
+    ballUrl: `${SCHEME}://shell/floating-ball.html`,
+    panelUrl: `${applicationUrl}?dshCompact=1`,
+  })
   const refreshApplicationMenu = (): void => {
     Menu.setApplicationMenu(Menu.buildFromTemplate(process.platform === 'win32' ? devToolsItems : [{
       label: darwin ? app.name : currentDesktopLocale().messages.application,
@@ -1347,6 +1364,7 @@ async function main(): Promise<void> {
     quitConfirmation.dispose()
     backgroundNotice?.dispose()
     tray?.dispose()
+    floating.dispose()
     stopAccount?.()
     if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) welcomeWindow.hide()
     if (mainWindow !== undefined && !mainWindow.isDestroyed()) mainWindow.hide()
@@ -1370,6 +1388,7 @@ async function main(): Promise<void> {
       backgroundNotice?.dispose()
       updateJournal?.action('quit-requested')
       tray?.dispose()
+      floating.dispose()
       updateDialog.dispose()
       mandatoryUI?.dispose()
       // Installation preparation already awaited Platform storage cleanup.
@@ -1410,7 +1429,11 @@ async function main(): Promise<void> {
       if (state.error !== 'authentication-required') policyAuthenticationQueued = false
       if (state.blocking) {
         for (const controller of ordinaryDialogs) controller.abort()
-        if (!wasBlocking) updateDialog.cancel()
+        if (!wasBlocking) {
+          updateDialog.cancel()
+          // The blocking confirmation overlays only the main window; the panel must not stay usable.
+          floating.hidePanel()
+        }
       }
       mandatoryUI?.sync()
       if (state.blocking && !wasBlocking) void updateSchedule.check(false, true).catch((error: unknown) => { console.error(error) })

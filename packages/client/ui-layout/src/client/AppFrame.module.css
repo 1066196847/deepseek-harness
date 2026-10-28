@@ -55,6 +55,19 @@
   }
 }
 
+/* Desktop floating assistant panel: one centre column under a shell drag
+   strip; the navigation columns, the bottom row, and the chrome seat stay
+   unrendered (AppFrame.tsx reads the same compact flag). */
+.compact {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.compactDrag {
+  height: 28px;
+  -webkit-app-region: drag;
+}
+
 .sidebarCol {
   min-width: 0;
   overflow: hidden;

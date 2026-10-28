@@ -15,6 +15,7 @@ Desktop runs the Harness workspace in a native application. This reference cover
 - [Application overview](#application-overview)
 - [Terminal command](#terminal-command)
 - [Closing the window and quitting](#closing-the-window-and-quitting)
+- [Floating assistant](#floating-assistant)
 - [Key technical decisions](#key-technical-decisions)
 - [Bundled command runtime](#bundled-command-runtime)
 - [Installation ownership](#installation-ownership)
@@ -80,6 +81,14 @@ The mandatory update confirmation includes the installation wait notice on Windo
 The confirmation is skipped when the installer restart already confirmed task interruption, when the fatal-recovery dialog exits or restarts, when the development Restart App and Host command runs, and during operating-system shutdown, restart, or log-off: Windows sets this on the definitive session-end message; macOS sets it on the power-off notification, and because another application can still cancel that shutdown, the next focus or show of the main window clears it. Installer-owned quit cancels any pending ordinary quit decision; late inspection results and dialog answers cannot open another confirmation or repeat cleanup. A user-initiated update download that finishes while the window is hidden defers its Install and Restart confirmation until the window is shown again; the mandatory flow keeps its taskbar and Dock attention. The Windows installer and uninstaller tell a user whose application is still running to quit it from the system tray. Desktop does not enable scheduled tasks by default, so the scheduled-task explanations appear only once that feature is on; reminders fire only in loaded sessions, and unloaded sessions are neither counted nor resumed until they are opened.
 
 The tray renderer enlarges the whale by 20% around the tile center while preserving the background and aspect ratio; application and installer icons retain their original proportions.
+
+<a id="floating-assistant"></a>
+
+## Floating assistant
+
+The application menu's **Floating Assistant** checkbox (also in the Windows caption Application menu) makes a 56px ball resident above every other window, on every macOS Space and over fullscreen applications. The ball is a shell-owned `dsh-app://shell/floating-ball.html` document in its own frameless, transparent, always-on-top window; dragging it moves the window and a click toggles the panel. Both the ball position and the enabled flag persist in `app.getPath('userData')/desktop/floating-assistant.json`; an unreadable file starts with the assistant off and keeps the last readable values it has.
+
+The panel is a second always-on-top window that loads the ordinary product document with `?dshCompact=1`: the client frame renders only the centre column under a 28px drag strip, without the sidebar, rightbar, bottom row, and window-chrome seat. The panel shares the main window's boot injections, Host credentials, and WebSocket credential injection, and its sender passes the same product-IPC guards as the main window. Escape hides the panel; the ball click and the menu checkbox show it again beside the ball, clamped into the ball's display work area. Disabling the checkbox destroys both windows; quitting destroys them with the rest of the shell.
 
 <a id="key-technical-decisions"></a>
 

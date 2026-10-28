@@ -15,6 +15,7 @@ Desktop 在原生应用中运行 Harness 工作区。本参考文档说明应用
 - [应用概览](#application-overview)
 - [终端命令](#terminal-command)
 - [关闭窗口与退出](#closing-the-window-and-quitting)
+- [悬浮助手](#floating-assistant)
 - [关键技术决策](#key-technical-decisions)
 - [内置命令运行时](#bundled-command-runtime)
 - [安装归属](#installation-ownership)
@@ -80,6 +81,14 @@ Windows 在整个运行期间常驻托盘图标。悬停提示为产品名，单
 以下情况跳过确认：安装更新的重启已确认过任务中断、致命错误恢复对话框中的退出或重启、开发版"重启应用与 Host"命令，以及操作系统关机、重启或注销：Windows 在确定性的会话结束消息上设置该状态；macOS 在关机通知上设置，而其他应用仍可能取消这次关机，因此主窗口下一次获得焦点或显示时会清除它。安装器接管退出时会取消尚未结束的普通退出决策；晚到的查询结果和弹框答复不会再次打开确认框或重复清理。窗口隐藏期间完成的用户主动发起的更新下载，把"安装并重启"确认推迟到窗口再次显示时；强制更新流程沿用其任务栏和 Dock 提醒。Windows 安装程序和卸载程序在应用仍在运行时提示用户先在系统托盘中退出。Desktop 默认未开启定时任务，定时任务的说明只在该功能开启后出现；提醒只在已加载的会话中触发，未加载的会话既不计入，也要等到打开后才会继续。
 
 托盘渲染器以底板中心为基准将鲸鱼放大 20%，保留背景和宽高比；应用和安装器图标保持原有比例。
+
+<a id="floating-assistant"></a>
+
+## 悬浮助手
+
+应用菜单的 **Floating Assistant** 复选项（Windows 标题栏 Application 菜单中同样提供）会让一个 56px 悬浮球常驻在所有其他窗口之上，覆盖 macOS 的每个空间与全屏应用。悬浮球是壳自有的 `dsh-app://shell/floating-ball.html` 文档，运行在独立的无框、透明、置顶窗口中；拖动它移动窗口，点击它切换面板。悬浮球位置与启用标志持久化在 `app.getPath('userData')/desktop/floating-assistant.json`；文件不可读时以关闭状态启动，并保留其中最后可读的值。
+
+面板是第二个置顶窗口，加载带 `?dshCompact=1` 的普通产品文档：客户端 frame 只渲染 28px 拖拽条之下的中列，不渲染 sidebar、rightbar、底行与窗口 chrome 席位。面板与主窗口共享 boot 注入、Host 凭据与 WebSocket 凭据注入，其 sender 通过与主窗口相同的产品 IPC 守卫。Escape 隐藏面板；悬浮球点击与菜单复选项会在悬浮球旁重新显示面板，并夹入悬浮球所在显示器的工作区。取消复选项销毁两个窗口；退出时随壳层其余部分一并销毁。
 
 <a id="key-technical-decisions"></a>
 

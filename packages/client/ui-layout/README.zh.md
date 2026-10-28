@@ -40,6 +40,8 @@ root 作用域的单一 `shell.bottom` slot 横跨三列下方的整行。占用
 
 Windows Electron 的 `data-windows-titlebar` 标记在所有列上方预留顶栏高度，并移除收起后的侧栏轨道。内容区仅左上角保留 16px 圆角，其余角和内部交界处保持直角。框架发布 `--dsh-windows-content-radius` 和 `--dsh-windows-sidebar-width`，供 ui-sidebar-right 的全屏圆角及侧栏避让使用。普通 Web 文档不会获得该标记；macOS 保留其独立布局。
 
+桌面悬浮助手面板以 `?dshCompact=1` 加载文档；frame 随后只在一条 28px 的 `-webkit-app-region: drag` 拖拽条之下渲染单一中列，不渲染 sidebar、rightbar、`shell.bottom` 与 `shell.leading` 席位。该模式仅来自 URL，因此面板重载无需壳状态即可恢复。
+
 根元素通过 `--dsh-frame-top-clearance` 发布顶栏占用量（macOS 为 48px，Windows 为标题栏高度），通过 `--dsh-frame-overlay-top` 为弹窗和菜单再留出 20px。原生全屏时浮层起点降为 20px；弹窗仍保留自身 24px 的最小边距。`--dsh-frame-chrome-top` 让模态遮罩不绘制 Windows 顶栏区域，全屏时归零。覆盖整个视口的模态层仍阻挡背景点击。普通浏览器文档不发布这些值。
 
 ### 主题呈现
