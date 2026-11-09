@@ -97,6 +97,7 @@ export interface DshDesktopProductApi {
 export const FLOATING_IPC = {
   ballToggle: 'dsh-desktop:floating-ball-toggle',
   ballMove: 'dsh-desktop:floating-ball-move',
+  ballMenu: 'dsh-desktop:floating-ball-menu',
 } as const
 
 /** Scheme of Desktop-owned application documents. */

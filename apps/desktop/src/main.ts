@@ -786,7 +786,9 @@ async function main(): Promise<void> {
 
   installDesktopDirectoryPicker(() => mainWindow)
   installMicrophonePermissions(session.defaultSession, () => mainWindow?.webContents)
-  const shortcuts = installDesktopShortcuts(() => mainWindow, app.getPath('userData'),
+  const shortcuts = installDesktopShortcuts(() =>
+      [mainWindow, floating.panelWindow()].filter((w): w is BrowserWindow => w !== undefined && !w.isDestroyed()),
+    app.getPath('userData'),
     process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux', () => { refreshApplicationMenu() }, window => updateOverlays.input(window))
   app.on('will-quit', () => { shortcuts.dispose() })
 
@@ -1092,6 +1094,15 @@ async function main(): Promise<void> {
     panelPreload: appPreload,
     ballUrl: `${SCHEME}://shell/floating-ball.html`,
     panelUrl: `${applicationUrl}?dshCompact=1`,
+    assistantMenuLabel: () => currentDesktopLocale().messages.floatingAssistantMenu,
+    setAssistantEnabled: (enabled) => {
+      floating.setEnabled(enabled)
+      refreshApplicationMenu()
+    },
+    onPanelCreated: (panel) => {
+      browserGuests.bind(panel, (guest, name) => shortcuts.attachGuest(panel, guest, name))
+      shortcuts.attach(panel)
+    },
   })
   const refreshApplicationMenu = (): void => {
     Menu.setApplicationMenu(Menu.buildFromTemplate(process.platform === 'win32' ? devToolsItems : [{
@@ -1350,8 +1361,11 @@ async function main(): Promise<void> {
     if (url === 'dsh://open' || url === 'dsh://open/') focusPrimaryWindow()
   })
 
-  app.on('activate', (_event, hasVisibleWindows) => {
-    if (!hasVisibleWindows) focusPrimaryWindow()
+  app.on('activate', () => {
+    // The floating ball keeps Electron's hasVisibleWindows true while the primary window
+    // is minimized or hidden, so gate on the primary window's own visibility instead.
+    const primary = welcomeWindow ?? mainWindow
+    if (primary === undefined || primary.isDestroyed() || !primary.isVisible()) focusPrimaryWindow()
   })
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()

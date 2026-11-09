@@ -52,13 +52,22 @@ const native = await vi.hoisted(async () => {
     }
   }
   const workArea = { x: 0, y: 0, width: 1440, height: 900 }
+  const menus: { template: { label: string; type?: string; checked?: boolean; click: (item: { checked: boolean }) => void }[]; popup: ReturnType<typeof vi.fn> }[] = []
   return {
     windows,
+    menus,
     FakeWindow,
     ipcMain: new EventEmitter(),
     screen: {
       getPrimaryDisplay: () => ({ workArea }),
       getDisplayMatching: () => ({ workArea }),
+    },
+    Menu: {
+      buildFromTemplate: vi.fn((template: { label: string; type?: string; checked?: boolean; click: (item: { checked: boolean }) => void }[]) => {
+        const menu = { template, popup: vi.fn() }
+        menus.push(menu)
+        return menu
+      }),
     },
   }
 })
@@ -67,22 +76,26 @@ vi.mock('electron', () => ({
   BrowserWindow: native.FakeWindow,
   ipcMain: native.ipcMain,
   screen: native.screen,
+  Menu: native.Menu,
 }))
 const { DesktopFloatingAssistant } = await import('../src/floating-window.ts')
 
-afterEach(() => { native.windows.length = 0 })
+afterEach(() => { native.windows.length = 0; native.menus.length = 0 })
 
 function setup(state?: { enabled: boolean; x: number; y: number }) {
   const statePath = join(mkdtempSync(join(tmpdir(), 'dsh-floating-')), 'floating-assistant.json')
   if (state !== undefined) writeFileSync(statePath, JSON.stringify(state))
+  const setAssistantEnabled = vi.fn()
   const assistant = new DesktopFloatingAssistant({
     statePath,
     ballPreload: '/ball.cjs',
     panelPreload: '/app.cjs',
     ballUrl: 'dsh-app://shell/floating-ball.html',
     panelUrl: 'dsh-app://app/?dshCompact=1',
+    assistantMenuLabel: () => 'Floating Assistant',
+    setAssistantEnabled,
   })
-  return { assistant, statePath }
+  return { assistant, statePath, setAssistantEnabled }
 }
 
 /** The ball reveals itself after its document load settles. */
@@ -142,6 +155,30 @@ it('moves the ball by reported deltas and persists the clamped position', async 
   expect(JSON.parse(readFileSync(statePath, 'utf8'))).toEqual({ enabled: true, x: 0, y: 900 - 56 })
   native.ipcMain.emit(FLOATING_IPC.ballMove, { sender: ball.webContents }, 'left', 1)
   expect(ball.bounds).toEqual({ x: 0, y: 900 - 56, width: 56, height: 56 })
+  // Fractional deltas accumulate in the float anchor instead of being truncated away.
+  native.ipcMain.emit(FLOATING_IPC.ballMove, { sender: ball.webContents }, 0.4, 0)
+  expect(ball.bounds).toEqual({ x: 0, y: 900 - 56, width: 56, height: 56 })
+  native.ipcMain.emit(FLOATING_IPC.ballMove, { sender: ball.webContents }, 0.4, 0)
+  expect(ball.bounds).toEqual({ x: 1, y: 900 - 56, width: 56, height: 56 })
+  assistant.dispose()
+})
+
+it('pops the assistant checkbox from the ball context menu and applies it like the menu item', async () => {
+  const { assistant, setAssistantEnabled } = setup({ enabled: true, x: 10, y: 10 })
+  await flush()
+  const ball = native.windows[0]!
+  native.ipcMain.emit(FLOATING_IPC.ballMenu, { sender: ball.webContents })
+  expect(native.menus).toHaveLength(1)
+  const menu = native.menus[0]!
+  expect(menu.popup).toHaveBeenCalledWith({ window: ball })
+  expect(menu.template).toHaveLength(1)
+  expect(menu.template[0]).toMatchObject({ label: 'Floating Assistant', type: 'checkbox', checked: true })
+  // Electron flips the checkbox before invoking click; the shell applies the new value.
+  menu.template[0]!.click({ checked: false })
+  expect(setAssistantEnabled).toHaveBeenCalledExactlyOnceWith(false)
+  // A foreign sender pops nothing.
+  native.ipcMain.emit(FLOATING_IPC.ballMenu, { sender: { id: -1 } })
+  expect(native.menus).toHaveLength(1)
   assistant.dispose()
 })
 

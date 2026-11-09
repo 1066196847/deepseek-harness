@@ -56,8 +56,8 @@ type KeyboardFixture = Omit<ReturnType<typeof installDesktopShortcuts>, 'attach'
   attachGuest(window: WindowFixture, guest: ContentsFixture, name: DesktopBrowserLeaseId): () => void
 }
 // Electron is substituted at module load; fixtures implement the native members exercised by this installer.
-const installFixture = installDesktopShortcuts as (
-  getWindow: () => WindowFixture | undefined, userData: string,
+const installFixture = installDesktopShortcuts as unknown as (
+  getWindows: () => readonly WindowFixture[], userData: string,
   platform: Parameters<typeof installDesktopShortcuts>[2], updateMenu: () => void,
   overlayInput: (window: WindowFixture) => { readonly revision: number; readonly blocked: boolean },
 ) => KeyboardFixture
@@ -93,7 +93,7 @@ async function fixture(platform: 'macos' | 'windows' | 'linux' = 'macos') {
   let current: WindowFixture | undefined = window
   const updateMenu = vi.fn()
   const updateOverlays = new DesktopUpdateOverlays()
-  const keyboard = installFixture(() => current, root, platform, updateMenu, window => updateOverlays.input(window))
+  const keyboard = installFixture(() => current ? [current] : [], root, platform, updateMenu, window => updateOverlays.input(window))
   keyboard.attach(current)
   onTestFinished(() => { keyboard.dispose() })
   const handlers = new Map<string, (event: InvokeFixture, ...args: unknown[]) => unknown>(

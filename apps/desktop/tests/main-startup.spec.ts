@@ -96,8 +96,8 @@ const harness = await vi.hoisted(async () => {
       }),
     })
     readonly shown = deferred()
-    readonly show = vi.fn(() => { this.shown.resolve() })
-    readonly hide = vi.fn()
+    readonly show = vi.fn(() => { this.visible = true; this.shown.resolve() })
+    readonly hide = vi.fn(() => { this.visible = false })
     readonly focus = vi.fn()
     readonly moveTop = vi.fn()
     readonly setAlwaysOnTop = vi.fn()

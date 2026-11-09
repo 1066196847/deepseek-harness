@@ -6,7 +6,7 @@
  * document through the compact frame query.
  */
 
-import { BrowserWindow, ipcMain, screen, type IpcMainEvent } from 'electron'
+import { BrowserWindow, ipcMain, Menu, screen, type IpcMainEvent } from 'electron'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { FLOATING_IPC } from './ipc.ts'
@@ -33,10 +33,16 @@ export interface DesktopFloatingOptions {
   readonly panelPreload: string
   readonly ballUrl: string
   readonly panelUrl: string
+  /** Label of the ball context menu entry, which mirrors the application menu checkbox. */
+  readonly assistantMenuLabel: () => string
+  /** Applies the ball context menu entry exactly like the application menu checkbox does. */
+  readonly setAssistantEnabled: (enabled: boolean) => void
+  /** Called once when the compact panel window is first created, before navigation. */
+  readonly onPanelCreated?: (panel: BrowserWindow) => void
 }
 
 function defaultState(): DesktopFloatingState {
-  return { enabled: false, x: Number.NaN, y: Number.NaN }
+  return { enabled: true, x: Number.NaN, y: Number.NaN }
 }
 
 function readState(path: string): DesktopFloatingState {
@@ -78,15 +84,28 @@ function clampRect(x: number, y: number, width: number, height: number, area: El
   }
 }
 
+/**
+ * Keep the window on every Space. `visibleOnFullScreen` must stay off: Electron flips
+ * the macOS activation policy to accessory for it, which deactivates the application
+ * and drops its other windows behind foreign ones; the policy cannot be restored
+ * without losing focus and window order.
+ */
+function showOnAllWorkspaces(window: BrowserWindow): void {
+  window.setVisibleOnAllWorkspaces(true)
+}
+
 export class DesktopFloatingAssistant {
   private state: DesktopFloatingState
   private ball: BrowserWindow | undefined
   private panel: BrowserWindow | undefined
+  /** Fractional ball position; window bounds only carry integers. */
+  private ballPosition: { x: number; y: number } | undefined
 
   constructor(private readonly options: DesktopFloatingOptions) {
     this.state = readState(options.statePath)
     ipcMain.on(FLOATING_IPC.ballToggle, this.onBallToggle)
     ipcMain.on(FLOATING_IPC.ballMove, this.onBallMove)
+    ipcMain.on(FLOATING_IPC.ballMenu, this.onBallMenu)
     if (this.state.enabled) this.showBall()
   }
 
@@ -114,6 +133,7 @@ export class DesktopFloatingAssistant {
     }
     this.ball = undefined
     this.panel = undefined
+    this.ballPosition = undefined
   }
 
   togglePanel(): void {
@@ -130,11 +150,13 @@ export class DesktopFloatingAssistant {
   dispose(): void {
     ipcMain.removeListener(FLOATING_IPC.ballToggle, this.onBallToggle)
     ipcMain.removeListener(FLOATING_IPC.ballMove, this.onBallMove)
+    ipcMain.removeListener(FLOATING_IPC.ballMenu, this.onBallMenu)
     for (const window of [this.ball, this.panel]) {
       if (window !== undefined && !window.isDestroyed()) window.destroy()
     }
     this.ball = undefined
     this.panel = undefined
+    this.ballPosition = undefined
   }
 
   private readonly onBallToggle = (event: IpcMainEvent): void => {
@@ -142,14 +164,31 @@ export class DesktopFloatingAssistant {
     this.togglePanel()
   }
 
+  /** One checkbox entry that behaves exactly like the application menu's assistant item. */
+  private readonly onBallMenu = (event: IpcMainEvent): void => {
+    const ball = this.ball
+    if (ball === undefined || ball.isDestroyed() || event.sender !== ball.webContents) return
+    Menu.buildFromTemplate([{
+      label: this.options.assistantMenuLabel(),
+      type: 'checkbox',
+      checked: this.state.enabled,
+      click: (item) => { this.options.setAssistantEnabled(item.checked) },
+    }]).popup({ window: ball })
+  }
+
   private readonly onBallMove = (event: IpcMainEvent, dx: unknown, dy: unknown): void => {
     const ball = this.ball
     if (ball === undefined || ball.isDestroyed() || event.sender !== ball.webContents) return
     if (typeof dx !== 'number' || typeof dy !== 'number' || !Number.isFinite(dx) || !Number.isFinite(dy)) return
     const bounds = ball.getBounds()
-    const next = clampBall(bounds.x + Math.trunc(dx), bounds.y + Math.trunc(dy))
-    ball.setBounds({ ...next, width: BALL_SIZE, height: BALL_SIZE })
-    this.state = { ...this.state, ...next }
+    // Window bounds are integers, so fractional deltas accumulate in a float anchor;
+    // rounding each delta alone would discard sub-pixel movement and make drags jump.
+    const origin = this.ballPosition ?? bounds
+    const next = clampBall(origin.x + dx, origin.y + dy)
+    this.ballPosition = next
+    const placed = { x: Math.round(next.x), y: Math.round(next.y) }
+    ball.setBounds({ ...placed, width: BALL_SIZE, height: BALL_SIZE })
+    this.state = { ...this.state, ...placed }
     writeState(this.options.statePath, this.state)
   }
 
@@ -161,6 +200,7 @@ export class DesktopFloatingAssistant {
         const area = screen.getPrimaryDisplay().workArea
         return { x: area.x + area.width - BALL_SIZE - EDGE_MARGIN, y: area.y + area.height - BALL_SIZE - EDGE_MARGIN }
       })()
+    this.ballPosition = position
     const window = new BrowserWindow({
       width: BALL_SIZE,
       height: BALL_SIZE,
@@ -186,11 +226,14 @@ export class DesktopFloatingAssistant {
       },
     })
     window.setAlwaysOnTop(true, 'floating')
-    if (process.platform === 'darwin') window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    if (process.platform === 'darwin') showOnAllWorkspaces(window)
     window.on('closed', () => { if (this.ball === window) this.ball = undefined })
     this.ball = window
     void window.loadURL(this.options.ballUrl).then(() => {
       if (!window.isDestroyed() && this.state.enabled) window.show()
+    }, (error: unknown) => {
+      // An unhandled rejection here would terminate the main process outright.
+      console.error('desktop floating assistant: ball document failed to load', error)
     })
   }
 
@@ -217,8 +260,9 @@ export class DesktopFloatingAssistant {
         },
       })
       window.setAlwaysOnTop(true, 'floating')
-      if (process.platform === 'darwin') window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+      if (process.platform === 'darwin') showOnAllWorkspaces(window)
       window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      this.options.onPanelCreated?.(window)
       // Escape returns the user to the application underneath; the ball and the menu reopen the panel.
       window.webContents.on('before-input-event', (event, input) => {
         if (input.type !== 'keyDown' || input.key !== 'Escape') return
@@ -227,7 +271,9 @@ export class DesktopFloatingAssistant {
       })
       window.on('closed', () => { if (this.panel === window) this.panel = undefined })
       this.panel = window
-      void window.loadURL(this.options.panelUrl)
+      void window.loadURL(this.options.panelUrl).catch((error: unknown) => {
+        console.error('desktop floating assistant: panel document failed to load', error)
+      })
     }
     this.placePanel(window)
     window.show()

@@ -41,6 +41,8 @@
   })
   ball.addEventListener('pointermove', (event) => {
     if (drag === null) return
+    // A lost pointerup must not turn plain hovering into a drag.
+    if (event.buttons === 0) { drag = null; return }
     const dx = event.screenX - drag.x
     const dy = event.screenY - drag.y
     if (dx === 0 && dy === 0) return
@@ -56,6 +58,11 @@
     if (clicked) api.toggle()
   })
   ball.addEventListener('pointercancel', () => { drag = null })
+  ball.addEventListener('contextmenu', (event) => {
+    event.preventDefault()
+    drag = null
+    api.menu()
+  })
 </script>
 </body>
 </html>

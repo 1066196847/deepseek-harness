@@ -8,7 +8,7 @@ import { DESKTOP_IPC, assertDesktopSender } from './ipc.ts'
 
 /**
  * Install application-owned configuration handlers and attach each product window's input lifecycle.
- * @param getWindow - current product window.
+ * @param getWindows - all currently live product windows (main window plus any floating panel).
  * @param userData - Electron-resolved device preference directory.
  * @param platform - local device platform.
  * @param updateMenu - rebuild the application menu when the close accelerator or availability changes.
@@ -16,7 +16,7 @@ import { DESKTOP_IPC, assertDesktopSender } from './ipc.ts'
  * @returns menu construction, editor key delivery, window attachment, and teardown operations.
  */
 export function installDesktopShortcuts(
-  getWindow: () => BrowserWindow | undefined, userData: string, platform: ShortcutPlatform, updateMenu: () => void,
+  getWindows: () => readonly BrowserWindow[], userData: string, platform: ShortcutPlatform, updateMenu: () => void,
   overlayInput: (window: BrowserWindow) => { readonly revision: number; readonly blocked: boolean },
 ): {
   fileMenu(labels: { fileMenu: string; closePage: string }): MenuItemConstructorOptions
@@ -48,9 +48,10 @@ export function installDesktopShortcuts(
   const closeAccelerator = (): string | undefined => presentBinding(closeBinding, platform).aria
     ?.replace('Meta+', 'Command+').replace(/Arrow(Up|Down|Left|Right)$/u, '$1')
   const sendMenuClose = (): void => {
-    const window = getWindow()
-    if (window === undefined || window.isDestroyed() || !window.isFocused() || !window.isEnabled()
-      || revision === undefined || recording || overlayInput(window).blocked) return
+    const windows = getWindows()
+    const window = windows.find(w => !w.isDestroyed() && w.isFocused() && w.isEnabled()
+      && revision !== undefined && !recording && !overlayInput(w).blocked)
+    if (window === undefined) return
     window.webContents.send(DESKTOP_IPC.shortcutsInput, { kind: 'menu', commandId: 'page.close', revision })
   }
   let keys = new Set<string>()
@@ -64,16 +65,17 @@ export function installDesktopShortcuts(
     const close = rows.find(row => row.id === 'page.close')
     closeBinding = close?.issue === null && close.conflicts.length === 0 ? close.binding : null
     if (wasEnabled !== (revision !== undefined) || previousAccelerator !== closeAccelerator()) updateMenu()
-    const window = getWindow()
-    if (window !== undefined && !window.isDestroyed() && window.webContents.mainFrame.url.startsWith('dsh-app://app/')) {
-      window.webContents.send(DESKTOP_IPC.shortcutsChanged, snapshot)
+    for (const window of getWindows()) {
+      if (!window.isDestroyed() && window.webContents.mainFrame.url.startsWith('dsh-app://app/')) {
+        window.webContents.send(DESKTOP_IPC.shortcutsChanged, snapshot)
+      }
     }
   }
   const persistence = desktopKeybindings(userData, platform, publish)
   const assertSender = (event: IpcMainInvokeEvent): BrowserWindow => {
-    const window = getWindow()
-    if (window === undefined || window.isDestroyed() || event.sender !== window.webContents
-      || event.senderFrame !== window.webContents.mainFrame) throw new Error('desktop shortcuts: rejected sender')
+    const window = getWindows().find(w => !w.isDestroyed() && event.sender === w.webContents
+      && event.senderFrame === w.webContents.mainFrame)
+    if (window === undefined) throw new Error('desktop shortcuts: rejected sender')
     assertDesktopSender(event, ['app'])
     return window
   }
@@ -136,7 +138,7 @@ export function installDesktopShortcuts(
         contents.setIgnoreMenuShortcuts(true)
         return
       }
-      if (window !== getWindow() || !window.isFocused() || !window.isEnabled() || revision === undefined
+      if (!getWindows().includes(window) || !window.isFocused() || !window.isEnabled() || revision === undefined
         || (guestName !== undefined && !contents.isFocused())) {
         contents.setIgnoreMenuShortcuts(false)
         held.clear()
@@ -223,8 +225,8 @@ export function installDesktopShortcuts(
 
   return {
     sendEditingKey(keyCode, modifiers) {
-      const window = getWindow()
-      if (window === undefined || window.isDestroyed() || overlayInput(window).blocked) return
+      const window = getWindows().find(w => !w.isDestroyed() && w.isFocused())
+      if (window === undefined || overlayInput(window).blocked) return
       const contents = [...guestInputs].find(([guest, owner]) => owner.window === window && !guest.isDestroyed() && guest.isFocused())?.[0]
         ?? window.webContents
       contents.focus()
