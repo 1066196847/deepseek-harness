@@ -5,6 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { FLOATING_IPC } from '../src/ipc.ts'
 
+type FakeMenuItem = { label: string; type?: string; checked?: boolean; click: (item: { checked: boolean }) => void }
+type FakeMenu = { template: FakeMenuItem[]; popup: ReturnType<typeof vi.fn> }
+
 const native = await vi.hoisted(async () => {
   const { EventEmitter } = await import('node:events')
   let nextId = 1
@@ -36,6 +39,8 @@ const native = await vi.hoisted(async () => {
       if (this.destroyed) return
       this.destroyed = true
       this.visible = false
+      const idx = windows.indexOf(this)
+      if (idx >= 0) windows.splice(idx, 1)
       this.emit('closed')
     })
     constructor(options: Record<string, unknown>) {
@@ -52,7 +57,7 @@ const native = await vi.hoisted(async () => {
     }
   }
   const workArea = { x: 0, y: 0, width: 1440, height: 900 }
-  const menus: { template: { label: string; type?: string; checked?: boolean; click: (item: { checked: boolean }) => void }[]; popup: ReturnType<typeof vi.fn> }[] = []
+  const menus: FakeMenu[] = []
   return {
     windows,
     menus,
@@ -63,7 +68,7 @@ const native = await vi.hoisted(async () => {
       getDisplayMatching: () => ({ workArea }),
     },
     Menu: {
-      buildFromTemplate: vi.fn((template: { label: string; type?: string; checked?: boolean; click: (item: { checked: boolean }) => void }[]) => {
+      buildFromTemplate: vi.fn((template: FakeMenuItem[]) => {
         const menu = { template, popup: vi.fn() }
         menus.push(menu)
         return menu
@@ -101,13 +106,10 @@ function setup(state?: { enabled: boolean; x: number; y: number }) {
 /** The ball reveals itself after its document load settles. */
 const flush = async (): Promise<void> => { await new Promise(resolve => setTimeout(resolve, 0)) }
 
-it('stays disabled without state and shows an always-on-top ball once enabled', async () => {
+it('starts enabled by default and hides the ball when disabled', async () => {
   const { assistant, statePath } = setup()
-  expect(assistant.enabled).toBe(false)
-  expect(assistant.panelWindow()).toBeUndefined()
-  expect(native.windows).toHaveLength(0)
-  assistant.setEnabled(true)
   expect(assistant.enabled).toBe(true)
+  expect(native.windows).toHaveLength(1)
   const ball = native.windows[0]!
   expect(ball.options).toMatchObject({ width: 56, height: 56, frame: false, transparent: true, skipTaskbar: true, show: false })
   expect(ball.options).toMatchObject({ x: 1440 - 56 - 24, y: 900 - 56 - 24 })
@@ -115,8 +117,12 @@ it('stays disabled without state and shows an always-on-top ball once enabled', 
   await flush()
   expect(ball.url).toBe('dsh-app://shell/floating-ball.html')
   expect(ball.show).toHaveBeenCalledOnce()
+  assistant.setEnabled(false)
+  expect(assistant.enabled).toBe(false)
+  expect(assistant.panelWindow()).toBeUndefined()
+  expect(native.windows).toHaveLength(0)
   const persisted = JSON.parse(readFileSync(statePath, 'utf8')) as { enabled: unknown }
-  expect(persisted.enabled).toBe(true)
+  expect(persisted.enabled).toBe(false)
   assistant.dispose()
 })
 
@@ -198,5 +204,5 @@ it('tears the resident windows down when disabled and releases ipc on dispose', 
   assistant.dispose()
   expect(panel.destroy).toHaveBeenCalledOnce()
   native.ipcMain.emit(FLOATING_IPC.ballToggle, { sender: ball.webContents })
-  expect(native.windows).toHaveLength(2)
+  expect(native.windows).toHaveLength(0)
 })
