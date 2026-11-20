@@ -17,6 +17,9 @@ export function desktopRuntimeFileExclusion(
     return 'package-manager metadata'
   }
   const file = parts.at(-1)!
+  // builder-util's archive walk skips these two names unconditionally, so they never
+  // reach app.asar; omit them here or the sealed inventory fails packaged integrity.
+  if (file === '.DS_Store' || file === '.gitkeep') return 'archive-walk placeholder'
   if (/\.(?:[cm]?[jt]s|css)\.map$/u.test(file)) return 'source map'
   if (/\.d\.[cm]?ts$/u.test(file)) return 'TypeScript declaration'
   if (/\.tsbuildinfo$/u.test(file)) return 'TypeScript build cache'

@@ -315,6 +315,8 @@
     { "path": "./packages/experimental/browser-use-stagehand-native" },
     { "path": "./packages/api/terminal-controller/tsconfig.host.json" },
     { "path": "./packages/computer-use/computer-use" },
+    { "path": "./packages/computer-use/ui-tars-desktop" },
+    { "path": "./packages/computer-use/ui-tars-desktop-bundle" },
     { "path": "./packages/experimental/computer-use-cua-driver-mcp" },
     { "path": "./packages/experimental/computer-use-cua-driver-native" },
     { "path": "./packages/experimental/cua/tsconfig.host.json" },

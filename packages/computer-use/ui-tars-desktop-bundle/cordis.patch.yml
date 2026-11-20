@@ -1,0 +1,4 @@
+- insert:
+    - id: ui-tars-desktop
+      name: '@deepseek-ai/dsh-ui-tars-desktop'
+      disabled: !!js process.platform !== 'darwin'

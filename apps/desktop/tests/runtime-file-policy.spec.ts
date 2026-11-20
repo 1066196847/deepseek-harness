@@ -32,6 +32,8 @@ it('omits development artifacts while preserving executable modules, assets and 
     '@deepseek-ai/libreoffice-kit-wasm/assets/soffice.data',
     '@deepseek-ai/libreoffice-kit-darwin-arm64/bin/libreoffice-kit',
     '.modules.yaml', '.pnpm-workspace-state-v1.json', '.bin/tool', '.pnpm/cache',
+    'clipboardy/fallbacks/.DS_Store', 'clipboardy/fallbacks/windows/.DS_Store',
+    'tr46/lib/.gitkeep', 'example/.DS_Store', 'example/.gitkeep',
   ]
   const retained = [
     'example/index.js', 'example/index.cjs', 'example/index.mjs', 'example/worker.js',
@@ -82,6 +84,16 @@ it('applies package-specific rules inside scoped and nested dependency container
   expect(desktopRuntimeFileExclusion('outer\\node_modules\\node-pty\\prebuilds\\win32-arm64\\conpty.node', windows, 'win32-x64')).toBeDefined()
   expect(desktopRuntimeFileExclusion('outer/node_modules/unrelated/test/data.html', windows, 'win32-x64')).toBeUndefined()
   expect(desktopRuntimeFileExclusion('outer/fs-ext/build/Release/fs_ext.lib', windows, 'win32-x64')).toBeUndefined()
+})
+
+it('omits only the archive-walk placeholders, retaining other dotfiles', () => {
+  expect(desktopRuntimeFileExclusion('clipboardy/fallbacks/.DS_Store', windows, 'win32-x64')).toBeDefined()
+  expect(desktopRuntimeFileExclusion('tr46/lib/.gitkeep', windows, 'win32-x64')).toBeDefined()
+  expect(desktopRuntimeFileExclusion('.DS_Store', windows, 'win32-x64')).toBeDefined()
+  expect(desktopRuntimeFileExclusion('example/.gitkeep', windows, 'win32-x64')).toBeDefined()
+  expect(desktopRuntimeFileExclusion('fast-uri/.gitattributes', windows, 'win32-x64')).toBeUndefined()
+  expect(desktopRuntimeFileExclusion('bmp-js/.npmignore', windows, 'win32-x64')).toBeUndefined()
+  expect(desktopRuntimeFileExclusion('buffer-equal/.travis.yml', windows, 'win32-x64')).toBeUndefined()
 })
 
 it('retains native prebuilds for the selected macOS architecture', () => {

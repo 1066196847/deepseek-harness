@@ -34,6 +34,7 @@ import {
 } from './macos-runtime.ts'
 import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 import { desktopRuntimeFileExclusion } from './runtime-file-policy.ts'
+import { resolveUiTarsProductConfig, withUiTarsBundleConfig } from './ui-tars-product-config.ts'
 import { selectOfficeEngine } from '../../../scripts/libreoffice-packages.mjs'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
@@ -151,6 +152,17 @@ async function main(): Promise<void> {
         filter: source => desktopRuntimeFileExclusion(relative(modules, source), target, officeEngine) === undefined,
       })
     })
+    if (target.platform === 'darwin') {
+      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:product-credentials', async () => {
+        const credentials = resolveUiTarsProductConfig(process.env, APP_ROOT)
+        if (credentials === undefined) {
+          console.log('desktop runtime: no UI-TARS product credentials; desktop_task requires environment configuration at runtime')
+          return
+        }
+        const bundlePatch = join(DSH_OUTPUT_ROOT, 'node_modules', '@deepseek-ai', 'dsh-ui-tars-desktop-bundle', 'cordis.patch.yml')
+        writeFileSync(bundlePatch, withUiTarsBundleConfig(readFileSync(bundlePatch, 'utf8'), credentials))
+      })
+    }
     writeFileSync(join(DSH_OUTPUT_ROOT, 'package.json'), `${JSON.stringify({
       name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: release.version, type: 'module',
       dependencies: Object.fromEntries(packageSet.packages.map(entry => [entry.name, entry.version])),
