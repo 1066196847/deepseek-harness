@@ -10,6 +10,11 @@
     "label": "检查更新…"
   },
   {
+    "label": "悬浮助手",
+    "type": "checkbox",
+    "checked": true
+  },
+  {
     "label": "管理 dsh 命令…"
   },
   {

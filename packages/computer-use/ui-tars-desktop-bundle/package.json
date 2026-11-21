@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-ui-tars-desktop-bundle",
   "description": "macOS desktop_task tool layer over the UI-TARS GUI agent",
-  "version": "0.2.2-rc.1",
+  "version": "0.2.2-rc.5",
   "publishConfig": {
     "access": "public"
   },
@@ -25,7 +25,10 @@
   "files": [
     "lib/index.js",
     "cordis.patch.yml",
-    "lib/types/**/*.d.ts"
+    "lib/types/**/*.d.ts",
+    "lib/types/**/*.d.ts.map",
+    "lib/**/*.js.map",
+    "src"
   ],
   "license": "MIT",
   "dsh": {

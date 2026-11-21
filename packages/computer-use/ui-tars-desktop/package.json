@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-ui-tars-desktop",
   "description": "Model-facing desktop_task tool running a UI-TARS GUI agent in a dedicated macOS child process",
-  "version": "0.2.2-rc.1",
+  "version": "0.2.2-rc.5",
   "publishConfig": {
     "access": "public"
   },
@@ -25,7 +25,10 @@
   "files": [
     "lib/index.js",
     "runner/*.mjs",
-    "lib/types/**/*.d.ts"
+    "lib/types/**/*.d.ts",
+    "lib/types/**/*.d.ts.map",
+    "lib/**/*.js.map",
+    "src"
   ],
   "license": "MIT",
   "dependencies": {

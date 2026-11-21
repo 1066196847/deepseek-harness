@@ -10,6 +10,11 @@
     "label": "Check for Updates…"
   },
   {
+    "label": "Floating Assistant",
+    "type": "checkbox",
+    "checked": true
+  },
+  {
     "label": "Manage dsh Command…"
   },
   {
